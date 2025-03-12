@@ -2,11 +2,9 @@
 name = "dnssnoop"
 object = "bin/dnssnoop"
 
-# BIND DIRECTIVES GO HERE!
-
 [[bind]]
-name = "output_rb"
+name = "dns_queries_rb"
 kind = "ring_buf"
 
 [bind.opts]
-btf_struct = "output"
+btf_struct = "dns_query"
