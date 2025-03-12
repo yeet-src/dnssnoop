@@ -23,7 +23,7 @@ CFLAGS = -g -O2 -target bpf -I include
 
 SRCS := $(wildcard $(SRCDIR)/*.bpf.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
-CONTAINER ?= $(shell test -e /.dockerenv && echo no || echo yes)
+CONTAINER ?= $(shell test -e /.dockerenv && echo yes || echo no)
 
 default: $(if $(filter yes, $(CONTAINER)), container, vmlinux $(BUILDDIR) $(BINDIR) $(BINDIR)/$(TARGET))
 ifeq ($(CONTAINER), yes)
