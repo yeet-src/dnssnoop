@@ -25,7 +25,7 @@
 #define DNS_FLAG_CD(flags) (((u16) (flags) & 0x0010) >> 4)
 #define DNS_FLAG_RCODE(flags) ((u16) (flags) & 0x000F)
 
-struct conn_key {
+struct query_state_key {
   u32 saddr;
   u32 daddr;
   u16 sport;
@@ -41,7 +41,7 @@ struct dnshdr {
   u16 add_count;
 };
 
-struct dns_query_internal {
+struct inflight_dns_query {
   pid_t pid;
   pid_t tgid;
   u64 cgroup_id;
@@ -77,6 +77,37 @@ struct dns_query {
   do {                                                                     \
     struct sk_buff skb = {};                                               \
     bpf_probe_read_kernel(&skb, sizeof(struct sk_buff), sk_buff_addr);     \
+    data_len = skb.len;                                                    \
+    data = (void*) (long) skb.data;                                        \
+    if (use_eth) {                                                         \
+      struct ethhdr eth = {};                                              \
+      READ_FROM_PACKET(struct ethhdr, eth, data, data_len);                \
+      if (eth.h_proto != bpf_htons(ETH_P_IP)) {                            \
+        return EXIT_FAILURE;                                               \
+      }                                                                    \
+    }                                                                      \
+    if (data_len < sizeof(struct iphdr)) {                                 \
+      return EXIT_FAILURE;                                                 \
+    }                                                                      \
+    data_len -= sizeof(struct iphdr);                                      \
+    bpf_probe_read_kernel(&ip, sizeof(struct iphdr), data);                \
+    u8 ip_ihl = ip.ihl;                                                    \
+    data_len += sizeof(struct iphdr);                                      \
+    if (data_len < ip_ihl << 2) {                                          \
+      return EXIT_FAILURE;                                                 \
+    }                                                                      \
+    data += ip_ihl << 2;                                                   \
+    data_len -= ip_ihl << 2;                                               \
+    if (ip.protocol != IPPROTO_UDP) {                                      \
+      return EXIT_FAILURE;                                                 \
+    }                                                                      \
+    data_len -= sizeof(struct udphdr);                                     \
+    bpf_probe_read_kernel(&udp, sizeof(struct udphdr), data);              \
+    data += sizeof(struct udphdr);                                         \
+  } while (0)
+
+#define DECODE_PACKETS_UDP_SKB(skb, ip, udp, data, data_len, use_eth) \
+  do {                                                                     \
     data_len = skb.len;                                                    \
     data = (void*) (long) skb.data;                                        \
     if (use_eth) {                                                         \
