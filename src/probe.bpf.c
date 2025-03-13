@@ -94,7 +94,7 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   dns.auth_count = bpf_ntohs(dns.auth_count);
   dns.add_count = bpf_ntohs(dns.add_count);
 
-  if (DNS_FLAG_Z(dns.flags) != 0 || DNS_FLAG_QR(dns.flags) != DNS_QUERY_CODE) {
+  if (DNS_FLAG_QR(dns.flags) != DNS_FLAG_QR_QUERY) {
     return EXIT_FAILURE;
   }
 
@@ -103,6 +103,7 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   key.daddr = ip.daddr;
   key.sport = udp_header.source;
   key.dport = udp_header.dest;
+  key.tx_id = dns.id;
 
   bpf_map_update_elem(&query_state, &key, &empty, BPF_ANY);
 
@@ -170,11 +171,30 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
     return EXIT_FAILURE;
   }
 
+  struct dnshdr dns = {};
+  READ_FROM_PACKET(struct dnshdr, dns, data, data_len);
+
+  dns.id = bpf_ntohs(dns.id);
+  dns.flags = bpf_ntohs(dns.flags);
+  dns.q_count = bpf_ntohs(dns.q_count);
+  dns.ans_count = bpf_ntohs(dns.ans_count);
+  dns.auth_count = bpf_ntohs(dns.auth_count);
+  dns.add_count = bpf_ntohs(dns.add_count);
+
+  if (DNS_FLAG_QR(dns.flags) != DNS_FLAG_QR_REPLY) {
+    return EXIT_FAILURE;
+  }
+
+  if (DNS_FLAG_RCODE(dns.flags) != DNS_FLAG_RCODE_NO_ERR) {
+    return EXIT_FAILURE;
+  }
+
   struct query_state_key key = {};
   key.saddr = ip_header.daddr;
   key.sport = udp_header.dest;
   key.daddr = ip_header.saddr;
   key.dport = udp_header.source;
+  key.tx_id = dns.id;
 
   struct inflight_dns_query* state = bpf_map_lookup_elem(&query_state, &key);
   if (!state) {
