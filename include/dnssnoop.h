@@ -12,7 +12,10 @@
 #define RINGBUF_SIZE 1024
 #define LRU_HASH_SIZE 1024
 
-#define DNS_QUERY_CODE 0
+#define DNS_FLAG_QR_QUERY 0
+#define DNS_FLAG_QR_REPLY 1
+
+#define DNS_FLAG_RCODE_NO_ERR 0
 
 #define DNS_FLAG_QR(flags) (((u16) (flags) & 0x8000) >> 15)
 #define DNS_FLAG_OPCODE(flags) (((u16) (flags) & 0x7800) >> 11)
@@ -30,6 +33,7 @@ struct query_state_key {
   u32 daddr;
   u16 sport;
   u16 dport;
+  u16 tx_id;
 };
 
 struct dnshdr {
