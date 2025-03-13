@@ -143,7 +143,33 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
     return EXIT_FAILURE;
   }
 
-  bpf_get_current_comm(state->comm, COMM_BUF_SIZE);
+  u64 arg_start = BPF_CORE_READ(cur_tsk, mm, arg_start);
+  u64 arg_end = BPF_CORE_READ(cur_tsk, mm, arg_end);
+  u64 arg_len = arg_end - arg_start;
+
+  if (!arg_start || !arg_end || arg_start >= arg_end) {
+    return EXIT_FAILURE;
+  }
+
+  u64 arg_copy_len = __builtin_elementwise_min(arg_len, COMMAND_BUF_SIZE);
+  bpf_probe_read_user(&state->command, arg_copy_len, (char*) arg_start);
+  for (int i = 0; i < arg_copy_len; i++) {
+    if (state->command[i] == '\0') {
+      state->command[i] = ' ';
+    }
+  }
+
+  if (arg_len > arg_copy_len) {
+    state->command[COMMAND_BUF_SIZE - 1] = '\0';
+    state->command[COMMAND_BUF_SIZE - 2] = '>';
+    state->command[COMMAND_BUF_SIZE - 3] = '.';
+    state->command[COMMAND_BUF_SIZE - 4] = '.';
+    state->command[COMMAND_BUF_SIZE - 5] = '.';
+    state->command[COMMAND_BUF_SIZE - 6] = '<';
+  }
+
+  bpf_get_current_comm(state->thread_name, THREAD_NAME_BUF_SIZE);
+
   bpf_map_update_elem(&query_state, &key, state, BPF_ANY);
   return EXIT_SUCCESS;
 }
@@ -237,7 +263,8 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   out->local_port = bpf_ntohs(udp_header.dest);
 
   bpf_probe_read_kernel_str(&out->name, NAME_BUF_SIZE, state->name);
-  bpf_probe_read_kernel_str(&out->comm, COMM_BUF_SIZE, state->comm);
+  bpf_probe_read_kernel_str(&out->comm, COMMAND_BUF_SIZE, state->command);
+  bpf_probe_read_kernel_str(&out->thread_name, THREAD_NAME_BUF_SIZE, state->thread_name);
   bpf_probe_read_kernel_str(&out->cgroup, CGROUP_BUF_SIZE, state->cgroup);
 
   bpf_ringbuf_submit(out, 0);

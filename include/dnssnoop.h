@@ -5,7 +5,8 @@
 
 #define ETH_P_IP 0x0800
 
-#define COMM_BUF_SIZE 16
+#define COMMAND_BUF_SIZE 256
+#define THREAD_NAME_BUF_SIZE 32
 #define NAME_BUF_SIZE 256
 #define CGROUP_BUF_SIZE 512
 
@@ -54,7 +55,8 @@ struct inflight_dns_query {
   u64 cgroup_id;
   u64 start_time;
   u16 id;
-  char comm[COMM_BUF_SIZE];
+  char command[COMMAND_BUF_SIZE];
+  char thread_name[THREAD_NAME_BUF_SIZE];
   char name[NAME_BUF_SIZE];
   char cgroup[CGROUP_BUF_SIZE];
 } __attribute__((packed));
@@ -65,7 +67,8 @@ struct dns_query {
   u64 cgroup_id;
   u64 latency_ns;
   u16 id;
-  char comm[COMM_BUF_SIZE];
+  char comm[COMMAND_BUF_SIZE];
+  char thread_name[THREAD_NAME_BUF_SIZE];
   char name[NAME_BUF_SIZE];
   char cgroup[CGROUP_BUF_SIZE];
   char remote_ip[IP_BUF_SIZE];
