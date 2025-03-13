@@ -17,6 +17,9 @@
 
 #define DNS_FLAG_RCODE_NO_ERR 0
 
+// this is the size that `test_snprintf.c` in the kernel tree uses
+#define IP_BUF_SIZE 64
+
 #define DNS_FLAG_QR(flags) (((u16) (flags) & 0x8000) >> 15)
 #define DNS_FLAG_OPCODE(flags) (((u16) (flags) & 0x7800) >> 11)
 #define DNS_FLAG_AA(flags) (((u16) (flags) & 0x0400) >> 10)
@@ -65,6 +68,10 @@ struct dns_query {
   char comm[COMM_BUF_SIZE];
   char name[NAME_BUF_SIZE];
   char cgroup[CGROUP_BUF_SIZE];
+  char remote_ip[IP_BUF_SIZE];
+  u16 remote_port;
+  char local_ip[IP_BUF_SIZE];
+  u16 local_port;
 } __attribute__((packed));
 
 #define READ_FROM_PACKET(type, var, data, data_len)  \
