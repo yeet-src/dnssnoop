@@ -18,7 +18,7 @@ struct {
 } query_state SEC(".maps");
 
 #define DNS_MAX_DOMAIN_LEN 256
-#define SCRATCH_BUF_LEN 256
+#define SCRATCH_BUF_LEN 1500
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __type(key, u32);
@@ -28,14 +28,14 @@ struct {
 
 struct inflight_dns_query empty = {};
 
-static s64 format_dns_record_to_domain_name(char* name, u32 name_len, const void* record, const u32 record_len)
+static s64 format_dns_record_to_domain_name(char* name, u32 name_len, void** record, u32* record_len)
 {
   if (record == NULL || name == NULL) {
     return -1;
   }
 
-  void* read_cursor = (void*) record;
-  void* read_end_ptr = (void*) record + record_len - 1;
+  void* read_cursor = (void*) *record;
+  void* read_end_ptr = (void*) *record + *record_len - 1;
   void* write_cursor = (void*) name;
   void* write_end_ptr = (void*) name + name_len - 1;
 
@@ -46,6 +46,11 @@ static s64 format_dns_record_to_domain_name(char* name, u32 name_len, const void
 
       if (this_segment_len == 0) {
         *(u8*) (write_cursor++) = '\0';
+
+        // adjust `record` to remove the portion we've read
+        *record_len -= read_cursor - *record;
+        *record = read_cursor;
+
         return write_cursor - (void*) name;
       }
 
@@ -60,12 +65,90 @@ static s64 format_dns_record_to_domain_name(char* name, u32 name_len, const void
   return -1;
 }
 
+static bool process_dns_questions(
+    struct inflight_dns_query* state,
+    const struct dnshdr header,
+    void* body,
+    void** body_cursor,
+    u32* body_len)
+{
+  if (format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, body_cursor, body_len) > 0) {
+    return false;
+  }
+
+  bpf_dbg_printk("query name: %s", state->name);
+
+  return true;
+}
+
+static bool process_dns_answers(
+    struct inflight_dns_query* state,
+    const struct dnshdr header,
+    void* body,
+    void** body_cursor,
+    u32* body_len)
+{
+  return false;
+}
+
+static bool process_dns_authority(
+    struct inflight_dns_query* state,
+    const struct dnshdr header,
+    void* body,
+    void** body_cursor,
+    u32* body_len)
+{
+  return false;
+}
+
+static bool process_dns_additional(
+    struct inflight_dns_query* state,
+    const struct dnshdr header,
+    void* body,
+    void** body_cursor,
+    u32* body_len)
+{
+  return false;
+}
+
+static bool process_dns_body(
+    struct inflight_dns_query* state,
+    struct dnshdr header,
+    void* body,
+    u32 body_len)
+{
+  void* body_cursor = body;
+  if (!process_dns_questions(state, header, body, &body_cursor, &body_len)) {
+    return false;
+  }
+
+  // HACK: to make it work as-is
+  return true;
+
+  if (!process_dns_answers(state, header, body, &body_cursor, &body_len)) {
+    return false;
+  }
+  if (!process_dns_authority(state, header, body, &body_cursor, &body_len)) {
+    return false;
+  }
+  if (!process_dns_additional(state, header, body, &body_cursor, &body_len)) {
+    return false;
+  }
+
+  return true;
+}
+
 SEC("tracepoint/net/net_dev_xmit")
 int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
 {
   void* data = NULL;
   u32 data_len = 0;
   void* sk_buff_addr = BPF_CORE_READ(ctx, skbaddr);
+
+  if (data_len > SCRATCH_BUF_LEN) {
+    bpf_printk("Warning: Jumbo frames not supported by dnssnoop. Ignoring.");
+    return EXIT_FAILURE;
+  }
 
   struct iphdr ip = {};
   struct udphdr udp_header = {};
@@ -117,12 +200,13 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
     return EXIT_FAILURE;
   }
 
-  u8* record = buf;
-  u32 record_len = __builtin_elementwise_min(SCRATCH_BUF_LEN, data_len);
-  bpf_probe_read_kernel(record, record_len, data);
-  s64 len = format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, record, record_len);
+  // read out full body
+  u8* body = buf;
+  // already checked, verifier doesn't understand that
+  u32 body_len = __builtin_elementwise_min(SCRATCH_BUF_LEN, data_len);
+  bpf_probe_read_kernel(body, body_len, data);
 
-  if (len < 0) {
+  if (process_dns_body(state, dns, body, body_len)) {
     bpf_map_delete_elem(&query_state, &key);
     return EXIT_FAILURE;
   }
