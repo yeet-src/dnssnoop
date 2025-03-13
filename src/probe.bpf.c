@@ -72,11 +72,23 @@ static bool process_dns_questions(
     void** body_cursor,
     u32* body_len)
 {
-  if (format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, body_cursor, body_len) > 0) {
-    return false;
+  for(int i = 0; i < header.q_count; i++) {
+    // TODO: this overwrites the query name with whatever is last. (Is that better/worse than our
+    //       current first only approach?)
+    if (format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, body_cursor, body_len) > 0) {
+      return false;
+    }
+
+    bpf_dbg_printk("query name: %s", state->name);
+
+    // return true;
+
+    // type
+    *body_cursor += 2;
+    // class
+    *body_cursor += 2;
   }
 
-  bpf_dbg_printk("query name: %s", state->name);
 
   return true;
 }
