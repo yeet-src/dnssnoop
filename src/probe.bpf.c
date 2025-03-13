@@ -167,6 +167,10 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   bpf_probe_read_kernel(skb, sizeof(struct sk_buff), sk_buff_addr);
   DECODE_PACKETS_UDP_SKB((*skb), ip_header, udp_header, data, data_len, false);
 
+  if (ip_header.version != 4) {
+    return EXIT_FAILURE;
+  }
+
   if (udp_header.source != bpf_htons(53)) {
     return EXIT_FAILURE;
   }
@@ -211,6 +215,26 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   out->tgid = state->tgid;
   out->cgroup_id = state->cgroup_id;
   out->latency_ns = bpf_ktime_get_ns() - state->start_time;
+
+  u32 sa = ip_header.saddr;
+  u8 sa_octets[] = {
+    sa & 0xff,
+    sa >> 8 & 0xff,
+    sa >> 16 & 0xff,
+    sa >> 24 & 0xff,
+  };
+  BPF_SNPRINTF(out->remote_ip, IP_BUF_SIZE, "%pI4", sa_octets);
+  out->remote_port = bpf_ntohs(udp_header.source);
+
+  u32 da = ip_header.daddr;
+  u8 da_octets[] = {
+    da & 0xff,
+    da >> 8 & 0xff,
+    da >> 16 & 0xff,
+    da >> 24 & 0xff,
+  };
+  BPF_SNPRINTF(out->local_ip, IP_BUF_SIZE, "%pI4", da_octets);
+  out->local_port = bpf_ntohs(udp_header.dest);
 
   bpf_probe_read_kernel_str(&out->name, NAME_BUF_SIZE, state->name);
   bpf_probe_read_kernel_str(&out->comm, COMM_BUF_SIZE, state->comm);
