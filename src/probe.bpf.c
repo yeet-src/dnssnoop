@@ -67,7 +67,7 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   u32 data_len = 0;
   void* sk_buff_addr = BPF_CORE_READ(ctx, skbaddr);
 
-  struct iphdr ip = {};
+  struct iphdr ip_header = {};
   struct udphdr udp_header = {};
 
   int index = 0;
@@ -78,7 +78,11 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
 
   struct sk_buff* skb = buf;
   bpf_probe_read_kernel(skb, sizeof(struct sk_buff), sk_buff_addr);
-  DECODE_PACKETS_UDP_SKB((*skb), ip, udp_header, data, data_len, true);
+  DECODE_PACKETS_UDP_SKB((*skb), ip_header, udp_header, data, data_len, true);
+
+  if (ip_header.version != 4) {
+    return EXIT_FAILURE;
+  }
 
   if (udp_header.dest != bpf_htons(53)) {
     return EXIT_FAILURE;
@@ -94,15 +98,16 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   dns.auth_count = bpf_ntohs(dns.auth_count);
   dns.add_count = bpf_ntohs(dns.add_count);
 
-  if (DNS_FLAG_Z(dns.flags) != 0 || DNS_FLAG_QR(dns.flags) != DNS_QUERY_CODE) {
+  if (DNS_FLAG_QR(dns.flags) != DNS_FLAG_QR_QUERY) {
     return EXIT_FAILURE;
   }
 
   struct query_state_key key = {};
-  key.saddr = ip.saddr;
-  key.daddr = ip.daddr;
+  key.saddr = ip_header.saddr;
+  key.daddr = ip_header.daddr;
   key.sport = udp_header.source;
   key.dport = udp_header.dest;
+  key.tx_id = dns.id;
 
   bpf_map_update_elem(&query_state, &key, &empty, BPF_ANY);
 
@@ -119,30 +124,60 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   u8* record = buf;
   u32 record_len = __builtin_elementwise_min(SCRATCH_BUF_LEN, data_len);
   bpf_probe_read_kernel(record, record_len, data);
-  s64 len = format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, record, record_len);
+  s64 len = format_dns_record_to_domain_name(state->domain_name, DOMAIN_NAME_BUF_SIZE, record, record_len);
 
   if (len < 0) {
     bpf_map_delete_elem(&query_state, &key);
     return EXIT_FAILURE;
   }
 
-  pid_t pid = bpf_get_current_pid_tgid() >> 32;
-  state->pid = pid;
+  pid_t pid = bpf_get_current_pid_tgid();
+  state->tid = pid;
+  pid_t tgid = bpf_get_current_pid_tgid() >> 32;
+  state->pid = tgid;
 
-  pid_t tgid = bpf_get_current_pid_tgid();
-  state->tgid = tgid;
+  uid_t uid = bpf_get_current_uid_gid();
+  state->uid = uid;
+  gid_t gid = bpf_get_current_uid_gid() >> 32;
+  state->gid = gid;
 
-  state->id = dns.id;
+  state->transaction_id = dns.id;
   state->start_time = bpf_ktime_get_ns();
 
   state->cgroup_id = bpf_get_current_cgroup_id();
   const char* cgroup_name = BPF_CORE_READ(cur_tsk, cgroups, subsys[memory_cgrp_id], cgroup, kn, name);
-  if (bpf_probe_read_kernel_str(&state->cgroup, CGROUP_BUF_SIZE, cgroup_name) < 0) {
+  if (bpf_probe_read_kernel_str(&state->cgroup, CGROUP_NAME_BUF_SIZE, cgroup_name) < 0) {
     bpf_map_delete_elem(&query_state, &key);
     return EXIT_FAILURE;
   }
 
-  bpf_get_current_comm(state->comm, COMM_BUF_SIZE);
+  u64 arg_start = BPF_CORE_READ(cur_tsk, mm, arg_start);
+  u64 arg_end = BPF_CORE_READ(cur_tsk, mm, arg_end);
+  u64 arg_len = arg_end - arg_start;
+
+  if (!arg_start || !arg_end || arg_start >= arg_end) {
+    return EXIT_FAILURE;
+  }
+
+  u64 arg_copy_len = __builtin_elementwise_min(arg_len, COMMAND_BUF_SIZE);
+  bpf_probe_read_user(&state->command, arg_copy_len, (char*) arg_start);
+  for (int i = 0; i < arg_copy_len; i++) {
+    if (state->command[i] == '\0') {
+      state->command[i] = ' ';
+    }
+  }
+
+  if (arg_len > arg_copy_len) {
+    state->command[COMMAND_BUF_SIZE - 1] = '\0';
+    state->command[COMMAND_BUF_SIZE - 2] = '>';
+    state->command[COMMAND_BUF_SIZE - 3] = '.';
+    state->command[COMMAND_BUF_SIZE - 4] = '.';
+    state->command[COMMAND_BUF_SIZE - 5] = '.';
+    state->command[COMMAND_BUF_SIZE - 6] = '<';
+  }
+
+  bpf_get_current_comm(state->thread_name, THREAD_NAME_BUF_SIZE);
+
   bpf_map_update_elem(&query_state, &key, state, BPF_ANY);
   return EXIT_SUCCESS;
 }
@@ -166,7 +201,29 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   bpf_probe_read_kernel(skb, sizeof(struct sk_buff), sk_buff_addr);
   DECODE_PACKETS_UDP_SKB((*skb), ip_header, udp_header, data, data_len, false);
 
+  if (ip_header.version != 4) {
+    return EXIT_FAILURE;
+  }
+
   if (udp_header.source != bpf_htons(53)) {
+    return EXIT_FAILURE;
+  }
+
+  struct dnshdr dns = {};
+  READ_FROM_PACKET(struct dnshdr, dns, data, data_len);
+
+  dns.id = bpf_ntohs(dns.id);
+  dns.flags = bpf_ntohs(dns.flags);
+  dns.q_count = bpf_ntohs(dns.q_count);
+  dns.ans_count = bpf_ntohs(dns.ans_count);
+  dns.auth_count = bpf_ntohs(dns.auth_count);
+  dns.add_count = bpf_ntohs(dns.add_count);
+
+  if (DNS_FLAG_QR(dns.flags) != DNS_FLAG_QR_REPLY) {
+    return EXIT_FAILURE;
+  }
+
+  if (DNS_FLAG_RCODE(dns.flags) != DNS_FLAG_RCODE_NO_ERR) {
     return EXIT_FAILURE;
   }
 
@@ -175,6 +232,7 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   key.sport = udp_header.dest;
   key.daddr = ip_header.saddr;
   key.dport = udp_header.source;
+  key.tx_id = dns.id;
 
   struct inflight_dns_query* state = bpf_map_lookup_elem(&query_state, &key);
   if (!state) {
@@ -186,15 +244,38 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
     return EXIT_FAILURE;
   }
 
-  out->id = state->id;
+  out->transaction_id = state->transaction_id;
+  out->tid = state->tid;
   out->pid = state->pid;
-  out->tgid = state->tgid;
+  out->uid = state->uid;
+  out->gid = state->gid;
   out->cgroup_id = state->cgroup_id;
   out->latency_ns = bpf_ktime_get_ns() - state->start_time;
 
-  bpf_probe_read_kernel_str(&out->name, NAME_BUF_SIZE, state->name);
-  bpf_probe_read_kernel_str(&out->comm, COMM_BUF_SIZE, state->comm);
-  bpf_probe_read_kernel_str(&out->cgroup, CGROUP_BUF_SIZE, state->cgroup);
+  u32 sa = ip_header.saddr;
+  u8 sa_octets[] = {
+    sa & 0xff,
+    sa >> 8 & 0xff,
+    sa >> 16 & 0xff,
+    sa >> 24 & 0xff,
+  };
+  BPF_SNPRINTF(out->remote_ip, IP_BUF_SIZE, "%pI4", sa_octets);
+  out->remote_port = bpf_ntohs(udp_header.source);
+
+  u32 da = ip_header.daddr;
+  u8 da_octets[] = {
+    da & 0xff,
+    da >> 8 & 0xff,
+    da >> 16 & 0xff,
+    da >> 24 & 0xff,
+  };
+  BPF_SNPRINTF(out->local_ip, IP_BUF_SIZE, "%pI4", da_octets);
+  out->local_port = bpf_ntohs(udp_header.dest);
+
+  bpf_probe_read_kernel_str(&out->domain_name, DOMAIN_NAME_BUF_SIZE, state->domain_name);
+  bpf_probe_read_kernel_str(&out->command, COMMAND_BUF_SIZE, state->command);
+  bpf_probe_read_kernel_str(&out->thread_name, THREAD_NAME_BUF_SIZE, state->thread_name);
+  bpf_probe_read_kernel_str(&out->cgroup_name, CGROUP_NAME_BUF_SIZE, state->cgroup);
 
   bpf_ringbuf_submit(out, 0);
   return EXIT_SUCCESS;

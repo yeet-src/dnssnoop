@@ -4,6 +4,7 @@ bin/
 build/
 include/vmlinux.h
 
-# Custom local configs
+# Custom local configs/tools
+.cache
 compile_flags.txt
 compile_commands.json

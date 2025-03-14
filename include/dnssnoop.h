@@ -5,14 +5,21 @@
 
 #define ETH_P_IP 0x0800
 
-#define COMM_BUF_SIZE 16
-#define NAME_BUF_SIZE 256
-#define CGROUP_BUF_SIZE 512
+#define COMMAND_BUF_SIZE 256
+#define THREAD_NAME_BUF_SIZE 32
+#define DOMAIN_NAME_BUF_SIZE 256
+#define CGROUP_NAME_BUF_SIZE 512
 
 #define RINGBUF_SIZE 1024
 #define LRU_HASH_SIZE 1024
 
-#define DNS_QUERY_CODE 0
+#define DNS_FLAG_QR_QUERY 0
+#define DNS_FLAG_QR_REPLY 1
+
+#define DNS_FLAG_RCODE_NO_ERR 0
+
+// this is the size that `test_snprintf.c` in the kernel tree uses
+#define IP_BUF_SIZE 64
 
 #define DNS_FLAG_QR(flags) (((u16) (flags) & 0x8000) >> 15)
 #define DNS_FLAG_OPCODE(flags) (((u16) (flags) & 0x7800) >> 11)
@@ -30,6 +37,7 @@ struct query_state_key {
   u32 daddr;
   u16 sport;
   u16 dport;
+  u16 tx_id;
 };
 
 struct dnshdr {
@@ -42,25 +50,39 @@ struct dnshdr {
 };
 
 struct inflight_dns_query {
+  // userspace tid, kernel pid
+  pid_t tid;
+  // userspace pid, kernel tgid
   pid_t pid;
-  pid_t tgid;
+  uid_t uid;
+  gid_t gid;
   u64 cgroup_id;
   u64 start_time;
-  u16 id;
-  char comm[COMM_BUF_SIZE];
-  char name[NAME_BUF_SIZE];
-  char cgroup[CGROUP_BUF_SIZE];
+  u16 transaction_id;
+  char command[COMMAND_BUF_SIZE];
+  char thread_name[THREAD_NAME_BUF_SIZE];
+  char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char cgroup[CGROUP_NAME_BUF_SIZE];
 } __attribute__((packed));
 
 struct dns_query {
+  // userspace tid, kernel pid
+  pid_t tid;
+  // userspace pid, kernel tgid
   pid_t pid;
-  pid_t tgid;
+  uid_t uid;
+  gid_t gid;
   u64 cgroup_id;
   u64 latency_ns;
-  u16 id;
-  char comm[COMM_BUF_SIZE];
-  char name[NAME_BUF_SIZE];
-  char cgroup[CGROUP_BUF_SIZE];
+  u16 transaction_id;
+  char command[COMMAND_BUF_SIZE];
+  char thread_name[THREAD_NAME_BUF_SIZE];
+  char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char cgroup_name[CGROUP_NAME_BUF_SIZE];
+  char remote_ip[IP_BUF_SIZE];
+  u16 remote_port;
+  char local_ip[IP_BUF_SIZE];
+  u16 local_port;
 } __attribute__((packed));
 
 #define READ_FROM_PACKET(type, var, data, data_len)  \
