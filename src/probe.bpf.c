@@ -137,6 +137,11 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   pid_t tgid = bpf_get_current_pid_tgid();
   state->pid = tgid;
 
+  uid_t uid = bpf_get_current_uid_gid();
+  state->uid = uid;
+  gid_t gid = bpf_get_current_uid_gid() >> 32;
+  state->gid = gid;
+
   state->transaction_id = dns.id;
   state->start_time = bpf_ktime_get_ns();
 
@@ -243,6 +248,8 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   out->transaction_id = state->transaction_id;
   out->tid = state->tid;
   out->pid = state->pid;
+  out->uid = state->uid;
+  out->gid = state->gid;
   out->cgroup_id = state->cgroup_id;
   out->latency_ns = bpf_ktime_get_ns() - state->start_time;
 

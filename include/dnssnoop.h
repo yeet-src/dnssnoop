@@ -54,6 +54,8 @@ struct inflight_dns_query {
   pid_t tid;
   // userspace pid, kernel tgid
   pid_t pid;
+  uid_t uid;
+  gid_t gid;
   u64 cgroup_id;
   u64 start_time;
   u16 transaction_id;
@@ -68,6 +70,8 @@ struct dns_query {
   pid_t tid;
   // userspace pid, kernel tgid
   pid_t pid;
+  uid_t uid;
+  gid_t gid;
   u64 cgroup_id;
   u64 latency_ns;
   u16 transaction_id;
