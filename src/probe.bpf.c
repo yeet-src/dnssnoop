@@ -67,7 +67,7 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   u32 data_len = 0;
   void* sk_buff_addr = BPF_CORE_READ(ctx, skbaddr);
 
-  struct iphdr ip = {};
+  struct iphdr ip_header = {};
   struct udphdr udp_header = {};
 
   int index = 0;
@@ -78,7 +78,11 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
 
   struct sk_buff* skb = buf;
   bpf_probe_read_kernel(skb, sizeof(struct sk_buff), sk_buff_addr);
-  DECODE_PACKETS_UDP_SKB((*skb), ip, udp_header, data, data_len, true);
+  DECODE_PACKETS_UDP_SKB((*skb), ip_header, udp_header, data, data_len, true);
+
+  if (ip_header.version != 4) {
+    return EXIT_FAILURE;
+  }
 
   if (udp_header.dest != bpf_htons(53)) {
     return EXIT_FAILURE;
@@ -99,8 +103,8 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   }
 
   struct query_state_key key = {};
-  key.saddr = ip.saddr;
-  key.daddr = ip.daddr;
+  key.saddr = ip_header.saddr;
+  key.daddr = ip_header.daddr;
   key.sport = udp_header.source;
   key.dport = udp_header.dest;
   key.tx_id = dns.id;
