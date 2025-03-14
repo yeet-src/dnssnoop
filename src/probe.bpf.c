@@ -120,7 +120,7 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   u8* record = buf;
   u32 record_len = __builtin_elementwise_min(SCRATCH_BUF_LEN, data_len);
   bpf_probe_read_kernel(record, record_len, data);
-  s64 len = format_dns_record_to_domain_name(state->name, NAME_BUF_SIZE, record, record_len);
+  s64 len = format_dns_record_to_domain_name(state->domain_name, DOMAIN_NAME_BUF_SIZE, record, record_len);
 
   if (len < 0) {
     bpf_map_delete_elem(&query_state, &key);
@@ -128,17 +128,17 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
   }
 
   pid_t pid = bpf_get_current_pid_tgid() >> 32;
-  state->pid = pid;
+  state->tid = pid;
 
   pid_t tgid = bpf_get_current_pid_tgid();
-  state->tgid = tgid;
+  state->pid = tgid;
 
-  state->id = dns.id;
+  state->transaction_id = dns.id;
   state->start_time = bpf_ktime_get_ns();
 
   state->cgroup_id = bpf_get_current_cgroup_id();
   const char* cgroup_name = BPF_CORE_READ(cur_tsk, cgroups, subsys[memory_cgrp_id], cgroup, kn, name);
-  if (bpf_probe_read_kernel_str(&state->cgroup, CGROUP_BUF_SIZE, cgroup_name) < 0) {
+  if (bpf_probe_read_kernel_str(&state->cgroup, CGROUP_NAME_BUF_SIZE, cgroup_name) < 0) {
     bpf_map_delete_elem(&query_state, &key);
     return EXIT_FAILURE;
   }
@@ -236,9 +236,9 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
     return EXIT_FAILURE;
   }
 
-  out->id = state->id;
+  out->transaction_id = state->transaction_id;
+  out->tid = state->tid;
   out->pid = state->pid;
-  out->tgid = state->tgid;
   out->cgroup_id = state->cgroup_id;
   out->latency_ns = bpf_ktime_get_ns() - state->start_time;
 
@@ -262,10 +262,10 @@ int trace_ingress(struct trace_event_raw_net_dev_template* ctx)
   BPF_SNPRINTF(out->local_ip, IP_BUF_SIZE, "%pI4", da_octets);
   out->local_port = bpf_ntohs(udp_header.dest);
 
-  bpf_probe_read_kernel_str(&out->name, NAME_BUF_SIZE, state->name);
-  bpf_probe_read_kernel_str(&out->comm, COMMAND_BUF_SIZE, state->command);
+  bpf_probe_read_kernel_str(&out->domain_name, DOMAIN_NAME_BUF_SIZE, state->domain_name);
+  bpf_probe_read_kernel_str(&out->command, COMMAND_BUF_SIZE, state->command);
   bpf_probe_read_kernel_str(&out->thread_name, THREAD_NAME_BUF_SIZE, state->thread_name);
-  bpf_probe_read_kernel_str(&out->cgroup, CGROUP_BUF_SIZE, state->cgroup);
+  bpf_probe_read_kernel_str(&out->cgroup_name, CGROUP_NAME_BUF_SIZE, state->cgroup);
 
   bpf_ringbuf_submit(out, 0);
   return EXIT_SUCCESS;

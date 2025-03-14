@@ -7,8 +7,8 @@
 
 #define COMMAND_BUF_SIZE 256
 #define THREAD_NAME_BUF_SIZE 32
-#define NAME_BUF_SIZE 256
-#define CGROUP_BUF_SIZE 512
+#define DOMAIN_NAME_BUF_SIZE 256
+#define CGROUP_NAME_BUF_SIZE 512
 
 #define RINGBUF_SIZE 1024
 #define LRU_HASH_SIZE 1024
@@ -50,27 +50,31 @@ struct dnshdr {
 };
 
 struct inflight_dns_query {
+  // userspace tid, kernel pid
+  pid_t tid;
+  // userspace pid, kernel tgid
   pid_t pid;
-  pid_t tgid;
   u64 cgroup_id;
   u64 start_time;
-  u16 id;
+  u16 transaction_id;
   char command[COMMAND_BUF_SIZE];
   char thread_name[THREAD_NAME_BUF_SIZE];
-  char name[NAME_BUF_SIZE];
-  char cgroup[CGROUP_BUF_SIZE];
+  char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char cgroup[CGROUP_NAME_BUF_SIZE];
 } __attribute__((packed));
 
 struct dns_query {
+  // userspace tid, kernel pid
+  pid_t tid;
+  // userspace pid, kernel tgid
   pid_t pid;
-  pid_t tgid;
   u64 cgroup_id;
   u64 latency_ns;
-  u16 id;
-  char comm[COMMAND_BUF_SIZE];
+  u16 transaction_id;
+  char command[COMMAND_BUF_SIZE];
   char thread_name[THREAD_NAME_BUF_SIZE];
-  char name[NAME_BUF_SIZE];
-  char cgroup[CGROUP_BUF_SIZE];
+  char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char cgroup_name[CGROUP_NAME_BUF_SIZE];
   char remote_ip[IP_BUF_SIZE];
   u16 remote_port;
   char local_ip[IP_BUF_SIZE];
