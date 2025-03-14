@@ -131,10 +131,9 @@ int trace_egress(struct trace_event_raw_net_dev_xmit* ctx)
     return EXIT_FAILURE;
   }
 
-  pid_t pid = bpf_get_current_pid_tgid() >> 32;
+  pid_t pid = bpf_get_current_pid_tgid();
   state->tid = pid;
-
-  pid_t tgid = bpf_get_current_pid_tgid();
+  pid_t tgid = bpf_get_current_pid_tgid() >> 32;
   state->pid = tgid;
 
   uid_t uid = bpf_get_current_uid_gid();
