@@ -47,16 +47,100 @@ Each time a DNS query is made and answered an event is emitted:
 | local_ip | `STRING` | The IP address this query was sent from. |
 | local_port | `INT` | The UDP port this query was sent from. |
 
-### Example Query
+# Examples
 
-You can query a collection from this yeet in the query editor with a query like:
+## 1. Top 10 Current Slowest Domains by p99 Latency
 
     SELECT
-      event.name,
-      event.server_ip,
-      event.latency_ms,
-      event.command,
-      timestamp,
-      seq_no
-    FROM {collection_name}
-    ORDER_BY seq_no DESC;
+      event.domain_name,
+      ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
+    FROM <collection_name>
+    GROUP BY event.domain_name
+    ORDER BY p99_latency_ms DESC
+    LIMIT 10
+
+### What This Query Does
+
+- Identifies **domains with the slowest DNS resolution times.**
+- Helps **optimize performance** by pinpointing DNS bottlenecks.
+- Detects **third-party services** affecting **latency and application speed.**
+- Surfaces **misconfigured or overloaded DNS resolvers.**
+- Prevents **timeouts, slow API responses, and degraded user experiences.**
+
+## 2. Top 10 Most Queried Domains
+
+    SELECT
+      event.domain_name,
+      COUNT(*) AS total_queries
+    FROM <collection_name>
+    GROUP BY event.domain_name
+    ORDER BY total_queries DESC
+    LIMIT 10
+
+### What This Query Does
+
+- Identifies **which domains are queried the most.**
+- Helps **analyze DNS traffic patterns** for potential optimizations.
+- Detects **unexpected domain spikes** that may indicate security risks or application bugs.
+
+## 3. Top 10 Slowest DNS Resolvers by p99 Latency
+
+    SELECT
+      event.remote_ip AS dns_resolver,
+      ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
+    FROM <collection_name>
+    GROUP BY event.remote_ip
+    ORDER BY p99_latency_ms DESC
+    LIMIT 10
+
+### What This Query Does
+
+- Finds **the slowest DNS resolvers** that may be affecting performance.
+- Helps decide if **switching to a faster resolver (e.g., Cloudflare, Google) is necessary.**
+- Detects **network congestion** issues between your system and specific resolvers.
+
+## 4. Top 10 Processes Making the Most DNS Queries
+
+    SELECT
+      event.command AS process,
+      COUNT(*) AS total_queries
+    FROM <collection_name>
+    GROUP BY event.command
+    ORDER BY total_queries DESC
+    LIMIT 10;
+
+### What This Query Does
+
+- Identifies **which processes generate the most DNS traffic.**
+- Helps debug **applications or scripts overloading the DNS resolver.**
+- Detects **potential malware or suspicious activity.**
+
+## 5. DNS Queries Per Second (Traffic Volume Trend)
+
+    SELECT
+      date_trunc('second', timestamp) AS second_bucket,
+      COUNT(*) AS queries_per_sec
+    FROM <collection_name>
+    GROUP BY second_bucket
+    ORDER BY second_bucket DESC
+
+### What This Query Does
+
+- Detects **sudden spikes in DNS traffic** (DDoS, botnets, misconfigured services).
+- Helps **monitor real-time DNS query load.**
+- Useful for **capacity planning and anomaly detection.**
+
+## 6. Least Common DNS Queries.
+
+    SELECT
+        event.domain_name,
+        COUNT(*) AS query_count
+    FROM <collection_name>
+    GROUP BY event.domain_name
+    ORDER BY query_count ASC
+
+### What This Query Does
+
+- Finds domains that have been **queried the least.**
+- **Highlights** one-off lookups, which may indicate: **malware, data exfiltration, misconfigured internal / test domains.**
+- Useful for **threat hunting and anomaly detection.**
