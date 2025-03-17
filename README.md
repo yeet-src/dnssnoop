@@ -18,11 +18,15 @@ Go to <https://yeet.cx/@yeet/dnssnoop>, select the host on which you'd like it d
 
 Build the eBPF program:
 
-    make
+```bash
+make
+```
 
 Deploy to the local host:
 
-    yeet add .
+```bash
+yeet add .
+```
 
 ## Data Schema
 
@@ -51,13 +55,15 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 1. Top 10 Current Slowest Domains by p99 Latency
 
-    SELECT
-      event.domain_name,
-      ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
-    FROM <collection_name>
-    GROUP BY event.domain_name
-    ORDER BY p99_latency_ms DESC
-    LIMIT 10
+```sql
+SELECT
+  event.domain_name,
+  ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
+FROM <collection_name>
+GROUP BY event.domain_name
+ORDER BY p99_latency_ms DESC
+LIMIT 10
+```
 
 ### What This Query Does
 
@@ -69,13 +75,15 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 2. Top 10 Most Queried Domains
 
-    SELECT
-      event.domain_name,
-      COUNT(*) AS total_queries
-    FROM <collection_name>
-    GROUP BY event.domain_name
-    ORDER BY total_queries DESC
-    LIMIT 10
+```sql
+SELECT
+  event.domain_name,
+  COUNT(*) AS total_queries
+FROM <collection_name>
+GROUP BY event.domain_name
+ORDER BY total_queries DESC
+LIMIT 10
+```
 
 ### What This Query Does
 
@@ -85,13 +93,15 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 3. Top 10 Slowest DNS Resolvers by p99 Latency
 
-    SELECT
-      event.remote_ip AS dns_resolver,
-      ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
-    FROM <collection_name>
-    GROUP BY event.remote_ip
-    ORDER BY p99_latency_ms DESC
-    LIMIT 10
+```sql
+SELECT
+  event.remote_ip AS dns_resolver,
+  ROUND(QUANTILE_CONT(event.latency_ns, 0.99) / 1e6, 2) AS p99_latency_ms
+FROM <collection_name>
+GROUP BY event.remote_ip
+ORDER BY p99_latency_ms DESC
+LIMIT 10
+```
 
 ### What This Query Does
 
@@ -101,13 +111,15 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 4. Top 10 Processes Making the Most DNS Queries
 
-    SELECT
-      event.command AS process,
-      COUNT(*) AS total_queries
-    FROM <collection_name>
-    GROUP BY event.command
-    ORDER BY total_queries DESC
-    LIMIT 10;
+```sql
+SELECT
+  event.command AS process,
+  COUNT(*) AS total_queries
+FROM <collection_name>
+GROUP BY event.command
+ORDER BY total_queries DESC
+LIMIT 10
+```
 
 ### What This Query Does
 
@@ -117,12 +129,14 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 5. DNS Queries Per Second (Traffic Volume Trend)
 
-    SELECT
-      date_trunc('second', timestamp) AS second_bucket,
-      COUNT(*) AS queries_per_sec
-    FROM <collection_name>
-    GROUP BY second_bucket
-    ORDER BY second_bucket DESC
+```sql
+SELECT
+  date_trunc('second', timestamp) AS second_bucket,
+  COUNT(*) AS queries_per_sec
+FROM <collection_name>
+GROUP BY second_bucket
+ORDER BY second_bucket DESC
+```
 
 ### What This Query Does
 
@@ -132,12 +146,14 @@ Each time a DNS query is made and answered an event is emitted:
 
 ## 6. Least Common DNS Queries.
 
-    SELECT
-        event.domain_name,
-        COUNT(*) AS query_count
-    FROM <collection_name>
-    GROUP BY event.domain_name
-    ORDER BY query_count ASC
+```sql
+SELECT
+    event.domain_name,
+    COUNT(*) AS query_count
+FROM <collection_name>
+GROUP BY event.domain_name
+ORDER BY query_count ASC
+```
 
 ### What This Query Does
 
