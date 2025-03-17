@@ -69,7 +69,7 @@ vmlinux: $(if $(filter yes, $(CONTAINER)), container, )
 ifeq ($(CONTAINER), yes)
 	docker run --rm -it -v $(CURDIR):/opt/$(TARGET) -w /opt/$(TARGET) $(TARGET) make vmlinux
 else
-	bpftool btf dump file $(VMLINUX) format c > include/vmlinux.h
+	sudo bpftool btf dump file $(VMLINUX) format c > include/vmlinux.h
 endif
 
 clean_vmlinux:
