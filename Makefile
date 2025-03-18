@@ -25,6 +25,7 @@ SRCS := $(wildcard $(SRCDIR)/*.bpf.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 CONTAINER ?= $(shell test -e /.dockerenv && echo yes || echo no)
 CLANG_FORMAT ?= $(shell type -P "clang-format-19" &> /dev/null && echo "clang-format-19" || echo "clang-format" )
+BPFTOOL ?= $(shell type -P "bpftool" &> /dev/null && echo "bpftool" || echo "/usr/sbin/bpftool" )
 
 default: $(if $(filter yes, $(CONTAINER)), container, include/vmlinux.h $(BUILDDIR) $(BINDIR) $(BINDIR)/$(TARGET))
 ifeq ($(CONTAINER), yes)
@@ -44,7 +45,7 @@ container:
 	docker build -t $(TARGET) .
 
 $(BINDIR)/$(TARGET): $(OBJS)
-	bpftool gen object $@ $^
+	$(BPFTOOL) gen object $@ $^
 	chmod +x $@
 
 $(BINDIR):
@@ -69,7 +70,7 @@ vmlinux: $(if $(filter yes, $(CONTAINER)), container, )
 ifeq ($(CONTAINER), yes)
 	docker run --rm -it -v $(CURDIR):/opt/$(TARGET) -w /opt/$(TARGET) $(TARGET) make vmlinux
 else
-	sudo bpftool btf dump file $(VMLINUX) format c > include/vmlinux.h
+	$(BPFTOOL) btf dump file $(VMLINUX) format c > include/vmlinux.h
 endif
 
 clean_vmlinux:
