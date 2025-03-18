@@ -1,0 +1,14 @@
+[package]
+name = "dnssnoop"
+spec = "v0"
+version = "0.1.0"
+license = "Dual BSD / GPL"
+repository = "https://github.com/yeet-src/dnssnoop"
+description = """
+dnssnoop is a lightweight, high-performance tool that monitors and logs DNS queries on your
+system in real-time. It captures detailed DNS transaction data, including domain names, process details,
+IP addresses, and query latency, with minimal system overhead. Ideal for security monitoring and
+network troubleshooting, dnssnoop provides comprehensive visibility into DNS resolution activities.
+Enhance your network observability and security posture with seamless integration into your existing
+infrastructure.
+"""
