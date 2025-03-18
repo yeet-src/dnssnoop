@@ -1,5 +1,6 @@
 # Generated files
 *.yeet
+!.yeet/
 bin/
 build/
 include/vmlinux.h
