@@ -35,7 +35,7 @@ debug: CFLAGS += -DBPF_DEBUG=1
 debug: default
 
 pkg:
-	$(PROJECT_ROOT)/scripts/yeet_pkg.sh --target $(TARGET) --bin $(BINDIR)/$(TARGET)
+	$(PROJECT_ROOT)/scripts/yeet_pkg.sh --target $(TARGET)
 
 unpkg:
 	$(PROJECT_ROOT)/scripts/yeet_pkg.sh -u --target $(TARGET)
