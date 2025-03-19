@@ -39,7 +39,7 @@ endif
 debug: CFLAGS += -DBPF_DEBUG=1
 debug: default
 
-pkg:
+pkg: default
 	$(PROJECT_ROOT)/scripts/yeet_pkg.sh --target $(TARGET)
 
 unpkg:
