@@ -24,8 +24,8 @@ CFLAGS = -g -O2 -target bpf -I include
 SRCS := $(wildcard $(SRCDIR)/*.bpf.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 CONTAINER ?= $(shell type docker > /dev/null && echo yes || echo no)
-CLANG_FORMAT ?= $(shell type -P "clang-format-19" &> /dev/null && echo "clang-format-19" || echo "clang-format" )
-BPFTOOL ?= $(shell type -P "bpftool" &> /dev/null && echo "bpftool" || echo "/usr/sbin/bpftool" )
+CLANG_FORMAT ?= $(shell type "clang-format-19" > /dev/null && echo "clang-format-19" || echo "clang-format")
+BPFTOOL ?= $(shell type "bpftool" > /dev/null && echo "bpftool" || echo "/usr/sbin/bpftool" )
 
 default: $(if $(filter yes, $(CONTAINER)), container, include/vmlinux.h $(BUILDDIR) $(BINDIR) $(BINDIR)/$(TARGET))
 ifeq ($(CONTAINER), yes)
