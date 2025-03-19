@@ -14,3 +14,13 @@ RUN apt-get update && apt-get install -y \
   && chmod +x llvm.sh \
   && ./llvm.sh 19 all \
   && rm llvm.sh
+
+ARG username=debian
+ARG user_id=1000
+ARG group_id=$user_id
+ARG user_shell=/bin/bash
+
+RUN groupadd --gid $group_id $username \
+    && useradd --uid $user_id --gid $group_id -m $username -s $user_shell
+
+USER $username
