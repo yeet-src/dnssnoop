@@ -3,6 +3,18 @@
 
 #include <vmlinux.h>
 
+
+#define TC_ACT_UNSPEC -1
+#define TC_ACT_OK 0
+#define TC_ACT_RECLASSIFY 1
+#define TC_ACT_SHOT 2
+#define TC_ACT_PIPE 3
+#define TC_ACT_STOLEN 4
+#define TC_ACT_QUEUED 5
+#define TC_ACT_REPEAT 6
+#define TC_ACT_REDIRECT 7
+
+
 #define ETH_P_IP 0x0800
 
 #define COMMAND_BUF_SIZE 256
@@ -33,10 +45,10 @@
 #define DNS_FLAG_RCODE(flags) ((u16) (flags) & 0x000F)
 
 struct query_state_key {
-  u32 saddr;
-  u32 daddr;
-  u16 sport;
-  u16 dport;
+  u32 client_addr;
+  u32 server_addr;
+  u16 client_port;
+  u16 server_port;
   u16 tx_id;
 };
 
