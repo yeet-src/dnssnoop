@@ -19,7 +19,7 @@ VMLINUX ?= /sys/kernel/btf/vmlinux
 CFORMAT = .clang-format
 
 CC = clang-19
-CFLAGS = -g -O2 -target bpf -I include
+CFLAGS = -g -O3 -target bpf -I include
 
 SRCS := $(wildcard $(SRCDIR)/*.bpf.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))

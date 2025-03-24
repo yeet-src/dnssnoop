@@ -37,14 +37,12 @@ Each time a DNS query is made and answered an event is emitted:
 | ----- | ---- | ----------- |
 | tid | `KernelPid` | The thread ID of the thread that made this query. |
 | pid | `KernelPid` | The process ID of the process that made this query. |
-| uid | `INT` | The user ID of the user that owns the process that made this query. |
-| gid | `INT` | The group ID of the user that owns the process that made this query. |
 | cgroup_id | `INT` | The ID of the control group associated with the process that made this query. |
 | latency_ns | `INT` | The latency, in nanoseconds, between the request and the reply. |
 | transaction_id | `INT` | The transaction ID of the query. |
 | command | `STRING` | The full command that spawned the process that made this query. |
-| thread_name | `STRING` | The name of the thread that made this query. |
 | domain_name | `STRING` | The domain name being queried. |
+| resolved_addresses | `[STRING]` | All the A records returned by the reply. |
 | cgroup_name | `STRING` | The name of the control group associated with the process that made this query. |
 | remote_ip | `STRING` | The IP address of the DNS server this query was sent to. |
 | remote_port | `INT` | The UDP port of the DNS server this query was sent to. |
