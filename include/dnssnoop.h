@@ -3,10 +3,22 @@
 
 #include <vmlinux.h>
 
+#define BPF_LOOP_CONTINUE 0
+#define BPF_LOOP_BREAK 1
+
+#define TC_ACT_UNSPEC -1
+#define TC_ACT_OK 0
+#define TC_ACT_RECLASSIFY 1
+#define TC_ACT_SHOT 2
+#define TC_ACT_PIPE 3
+#define TC_ACT_STOLEN 4
+#define TC_ACT_QUEUED 5
+#define TC_ACT_REPEAT 6
+#define TC_ACT_REDIRECT 7
+
 #define ETH_P_IP 0x0800
 
 #define COMMAND_BUF_SIZE 256
-#define THREAD_NAME_BUF_SIZE 32
 #define DOMAIN_NAME_BUF_SIZE 256
 #define CGROUP_NAME_BUF_SIZE 512
 
@@ -18,8 +30,13 @@
 
 #define DNS_FLAG_RCODE_NO_ERR 0
 
+#define DNS_MAX_SEGMENTS 128
+#define DNS_MAX_SEGMENT_LEN 64
+
 // this is the size that `test_snprintf.c` in the kernel tree uses
 #define IP_BUF_SIZE 64
+
+#define RESOLVED_ADDRESSES_MAX 16
 
 #define DNS_FLAG_QR(flags) (((u16) (flags) & 0x8000) >> 15)
 #define DNS_FLAG_OPCODE(flags) (((u16) (flags) & 0x7800) >> 11)
@@ -32,11 +49,13 @@
 #define DNS_FLAG_CD(flags) (((u16) (flags) & 0x0010) >> 4)
 #define DNS_FLAG_RCODE(flags) ((u16) (flags) & 0x000F)
 
+#define min __builtin_elementwise_min
+
 struct query_state_key {
-  u32 saddr;
-  u32 daddr;
-  u16 sport;
-  u16 dport;
+  u32 client_addr;
+  u32 server_addr;
+  u16 client_port;
+  u16 server_port;
   u16 tx_id;
 };
 
@@ -54,14 +73,12 @@ struct inflight_dns_query {
   pid_t tid;
   // userspace pid, kernel tgid
   pid_t pid;
-  uid_t uid;
-  gid_t gid;
   u64 cgroup_id;
   u64 start_time;
   u16 transaction_id;
   char command[COMMAND_BUF_SIZE];
-  char thread_name[THREAD_NAME_BUF_SIZE];
   char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char resolved_addresses[RESOLVED_ADDRESSES_MAX][IP_BUF_SIZE];
   char cgroup[CGROUP_NAME_BUF_SIZE];
 } __attribute__((packed));
 
@@ -70,14 +87,12 @@ struct dns_query {
   pid_t tid;
   // userspace pid, kernel tgid
   pid_t pid;
-  uid_t uid;
-  gid_t gid;
   u64 cgroup_id;
   u64 latency_ns;
   u16 transaction_id;
   char command[COMMAND_BUF_SIZE];
-  char thread_name[THREAD_NAME_BUF_SIZE];
   char domain_name[DOMAIN_NAME_BUF_SIZE];
+  char resolved_addresses[RESOLVED_ADDRESSES_MAX][IP_BUF_SIZE];
   char cgroup_name[CGROUP_NAME_BUF_SIZE];
   char remote_ip[IP_BUF_SIZE];
   u16 remote_port;
